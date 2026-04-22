@@ -1349,6 +1349,13 @@ class StockAnalysisPipeline:
             # 收集结果
             for idx, future in enumerate(as_completed(future_to_code)):
                 code = future_to_code[future]
+
+                # Delay between stocks to avoid API rate limit
+                if idx > 0:
+                    delay = int(os.environ.get("ANALYSIS_DELAY", 0))
+                    if delay > 0:
+                        logger.info(f"Wait {delay}s before next stock...")
+                        time.sleep(delay)
                 try:
                     result = future.result()
                     if result and result.success:
