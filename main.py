@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 ===================================
 A股自选股智能分析系统 - 主调度程序
@@ -278,6 +278,31 @@ def parse_arguments() -> argparse.Namespace:
         '--no-market-review',
         action='store_true',
         help='跳过大盘复盘分析'
+    )
+
+    parser.add_argument(
+        '--scan-market',
+        action='store_true',
+        help='全市场扫描模式：根据条件筛选股票'
+    )
+
+    parser.add_argument(
+        '--scan-and-analyze',
+        action='store_true',
+        help='扫描+分析模式：筛选股票后自动进行AI深度分析'
+    )
+
+    parser.add_argument(
+        '--conditions',
+        type=str,
+        help='筛选条件，格式: "涨幅>3,量比>1.5,换手率>5" (支持: 涨幅/量比/换手率/价格/市值)'
+    )
+
+    parser.add_argument(
+        '--scan-limit',
+        type=int,
+        default=50,
+        help='扫描结果数量限制 (默认50)'
     )
 
     parser.add_argument(
@@ -802,6 +827,41 @@ def main() -> int:
         return 0
 
     try:
+        # 模式0.5: 全市场扫描或扫描+分析
+        if args.scan_market or args.scan_and_analyze:
+            logger.info("模式: 全市场扫描")
+            
+            if not args.conditions:
+                logger.error("请指定 --conditions 参数，如: --conditions '载幅>3,量比>1.5'")
+                return 1
+            
+            from stock_scanner import StockScanner
+            
+            scanner = StockScanner()
+            
+            # 执行扫描
+            logger.info(f"扫描条件: {args.conditions}")
+            results = scanner.scan_market(
+                condition_str=args.conditions,
+                limit=args.scan_limit
+            )
+            
+            # 打印结果
+            print(scanner.format_results(results))
+            
+            # 如果只是扫描模式，退出
+            if args.scan_market:
+                logger.info(f"扫描完成，找到 {len(results)} 只符合条件的股票")
+                return 0
+            
+            # 扫描+分析模式: 将结果转为股票代码列表，继续执行分析
+            if results:
+                stock_codes = [r.code for r in results]
+                logger.info(f"将对以下 {len(stock_codes)} 只股票进行AI深度分析: {','.join(stock_codes[:10])}{'...' if len(stock_codes) > 10 else ''}")
+            else:
+                logger.info("未找到符合条件的股票，退出分析")
+                return 0
+
         # 模式0: 回测
         if getattr(args, 'backtest', False):
             logger.info("模式: 回测")
@@ -963,3 +1023,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
